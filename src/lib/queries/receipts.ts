@@ -1,0 +1,58 @@
+import { supabase } from "@/lib/supabase";
+
+export async function getReceipts() {
+  const { data, error } = await supabase
+    .from("receipts")
+    .select(
+      `
+      *,
+      line_items (*)
+    `
+    )
+    .order("purchase_date", { ascending: false });
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getSpendingByCategory() {
+  const { data, error } = await supabase
+    .from("line_items")
+    .select("category, total_price");
+
+  if (error) throw error;
+
+  // Aggregate by category
+  const byCategory = data.reduce((acc, item) => {
+    const cat = item.category || "Uncategorized";
+    acc[cat] = (acc[cat] || 0) + Number(item.total_price);
+    return acc;
+  }, {} as Record<string, number>);
+
+  return Object.entries(byCategory)
+    .map(([category, total]) => ({ category, total }))
+    .sort((a, b) => b.total - a.total);
+}
+
+export async function getTopItems(limit = 10) {
+  const { data, error } = await supabase
+    .from("line_items")
+    .select("normalized_name, raw_description, total_price, category");
+
+  if (error) throw error;
+
+  // Aggregate by item name
+  const byItem = data.reduce((acc, item) => {
+    const name = item.normalized_name || item.raw_description;
+    if (!acc[name]) {
+      acc[name] = { name, total: 0, count: 0, category: item.category };
+    }
+    acc[name].total += Number(item.total_price);
+    acc[name].count += 1;
+    return acc;
+  }, {} as Record<string, { name: string; total: number; count: number; category: string }>);
+
+  return Object.values(byItem)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, limit);
+}
