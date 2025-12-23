@@ -1,6 +1,8 @@
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 
 export async function getReceipts() {
+  const supabase = createClient();
+  
   const { data, error } = await supabase
     .from("receipts")
     .select(
@@ -16,6 +18,8 @@ export async function getReceipts() {
 }
 
 export async function getSpendingByCategory() {
+  const supabase = createClient();
+  
   const { data, error } = await supabase
     .from("line_items")
     .select("category, total_price");
@@ -35,6 +39,8 @@ export async function getSpendingByCategory() {
 }
 
 export async function getTopItems(limit = 10) {
+  const supabase = createClient();
+  
   const { data, error } = await supabase
     .from("line_items")
     .select("normalized_name, raw_description, total_price, category");
