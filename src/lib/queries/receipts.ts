@@ -98,3 +98,53 @@ export async function getTopItems(limit = 10) {
     .sort((a, b) => b.total - a.total)
     .slice(0, limit);
 }
+
+export async function updateLineItem(
+  id: string,
+  updates: {
+    normalized_name?: string;
+    category?: string;
+    subcategory?: string;
+  },
+  currentValues: {
+    normalized_name: string;
+    category: string;
+    subcategory: string;
+  }
+) {
+  const supabase = createClient();
+
+  // Get current user
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  // Find what actually changed
+  const changes = Object.entries(updates).filter(
+    ([key, value]) => value !== currentValues[key as keyof typeof currentValues]
+  );
+
+  if (changes.length === 0) return;
+
+  // Log each change to line_item_edits
+  const edits = changes.map(([field, newValue]) => ({
+    line_item_id: id,
+    user_id: user.id,
+    field,
+    old_value: currentValues[field as keyof typeof currentValues],
+    new_value: newValue,
+  }));
+
+  const { error: editError } = await supabase
+    .from("line_item_edits")
+    .insert(edits);
+
+  if (editError) throw editError;
+
+  // Update the line item
+  const { error: updateError } = await supabase
+    .from("line_items")
+    .update(updates)
+    .eq("id", id);
+
+  if (updateError) throw updateError;
+}

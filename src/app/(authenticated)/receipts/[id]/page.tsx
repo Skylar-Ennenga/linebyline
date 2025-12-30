@@ -1,18 +1,43 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
-import { getReceiptById, deleteReceipt } from "@/lib/queries/receipts";
+import { getReceiptById, deleteReceipt, updateLineItem } from "@/lib/queries/receipts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ArrowLeft, Trash2, Pencil } from "lucide-react";
 import Link from "next/link";
+
+interface LineItem {
+  id: string;
+  normalized_name: string;
+  category: string;
+  subcategory: string;
+  total_price: number;
+  is_discount: boolean;
+}
 
 export default function ReceiptDetailPage() {
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
   const id = params.id as string;
+
+  const [editingItem, setEditingItem] = useState<LineItem | null>(null);
+  const [editForm, setEditForm] = useState({
+    normalized_name: "",
+    category: "",
+    subcategory: "",
+  });
 
   const { data: receipt, isLoading } = useQuery({
     queryKey: ["receipt", id],
@@ -27,10 +52,36 @@ export default function ReceiptDetailPage() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: () =>
+      updateLineItem(editingItem!.id, editForm, {
+        normalized_name: editingItem!.normalized_name,
+        category: editingItem!.category,
+        subcategory: editingItem!.subcategory,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["receipt", id] });
+      setEditingItem(null);
+    },
+  });
+
   function handleDelete() {
     if (confirm("Are you sure you want to delete this receipt?")) {
       deleteMutation.mutate();
     }
+  }
+
+  function openEditModal(item: LineItem) {
+    setEditingItem(item);
+    setEditForm({
+      normalized_name: item.normalized_name,
+      category: item.category,
+      subcategory: item.subcategory,
+    });
+  }
+
+  function handleSaveEdit() {
+    updateMutation.mutate();
   }
 
   if (isLoading) {
@@ -61,8 +112,8 @@ export default function ReceiptDetailPage() {
             Back
           </Link>
         </Button>
-        <Button 
-          variant="destructive" 
+        <Button
+          variant="destructive"
           size="sm"
           onClick={handleDelete}
           disabled={deleteMutation.isPending}
@@ -81,23 +132,33 @@ export default function ReceiptDetailPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            {receipt.line_items?.map((item: any, i: number) => (
+            {receipt.line_items?.map((item: LineItem) => (
               <div
-                key={i}
-                className={`flex justify-between py-2 border-b last:border-0 ${
+                key={item.id}
+                className={`flex justify-between items-center py-2 border-b last:border-0 group ${
                   item.is_discount ? "text-green-600" : ""
                 }`}
               >
-                <div>
+                <div className="flex-1">
                   <p className="font-medium">{item.normalized_name}</p>
                   <p className="text-sm text-muted-foreground">
                     {item.category} → {item.subcategory}
                   </p>
                 </div>
-                <p className="font-mono">
-                  {item.is_discount ? "-" : ""}$
-                  {Math.abs(item.total_price).toFixed(2)}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="font-mono">
+                    {item.is_discount ? "-" : ""}$
+                    {Math.abs(item.total_price).toFixed(2)}
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => openEditModal(item)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -111,6 +172,54 @@ export default function ReceiptDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Item</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Item Name</Label>
+              <Input
+                id="name"
+                value={editForm.normalized_name}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, normalized_name: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="category">Category</Label>
+              <Input
+                id="category"
+                value={editForm.category}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, category: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="subcategory">Subcategory</Label>
+              <Input
+                id="subcategory"
+                value={editForm.subcategory}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, subcategory: e.target.value })
+                }
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setEditingItem(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={updateMutation.isPending}>
+              {updateMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }
