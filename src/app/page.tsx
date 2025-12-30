@@ -1,92 +1,56 @@
-"use client";
-
-import { useState } from "react";
-import { ReceiptUpload } from "@/components/receipt-upload";
-import { ParsedReceipt } from "@/lib/actions/parse-receipt";
-import { saveReceipt } from "@/lib/actions/save-receipt";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Receipt, TrendingUp, Search, Clock } from "lucide-react";
 
-export default function Home() {
-  const [receipt, setReceipt] = useState<ParsedReceipt | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  const handleSave = async () => {
-    if (!receipt) return;
-
-    setSaving(true);
-    try {
-      await saveReceipt(receipt);
-      setSaved(true);
-    } catch (err) {
-      console.error(err);
-      alert(err instanceof Error ? err.message : "Failed to save");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleNewReceipt = (parsed: ParsedReceipt) => {
-    setReceipt(parsed);
-    setSaved(false);
-  };
-
+export default function LandingPage() {
   return (
-    <main className="min-h-screen p-8 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-8">LineByLine</h1>
+    <main className="min-h-screen">
+      {/* Hero */}
+      <div className="container mx-auto px-4 py-20 text-center">
+        <div className="flex justify-center mb-6">
+          <Receipt className="h-16 w-16 text-primary" />
+        </div>
+        <h1 className="text-4xl md:text-6xl font-bold mb-4">
+          LineByLine
+        </h1>
+        <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+          Track your spending, item by item. Upload receipts, see where your money goes, and never wonder "what did I spend on groceries?" again.
+        </p>
+        <div className="flex gap-4 justify-center">
+          <Button asChild size="lg">
+            <Link href="/signup">Get Started</Link>
+          </Button>
+          <Button asChild variant="outline" size="lg">
+            <Link href="/login">Log In</Link>
+          </Button>
+        </div>
+      </div>
 
-      <div className="space-y-8">
-        <ReceiptUpload onParsed={handleNewReceipt} />
-
-        {receipt && (
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle>{receipt.store_name}</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    {receipt.store_location} • {receipt.purchase_date}
-                  </p>
-                </div>
-                <Button onClick={handleSave} disabled={saving || saved}>
-                  {saved ? "Saved ✓" : saving ? "Saving..." : "Save Receipt"}
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {receipt.line_items.map((item, i) => (
-                  <div
-                    key={i}
-                    className={`flex justify-between py-2 border-b last:border-0 ${
-                      item.is_discount ? "text-green-600" : ""
-                    }`}
-                  >
-                    <div>
-                      <p className="font-medium">{item.normalized_name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {item.category} → {item.subcategory}
-                      </p>
-                    </div>
-                    <p className="font-mono">
-                      {item.is_discount ? "-" : ""}$
-                      {Math.abs(item.total_price).toFixed(2)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-6 pt-4 border-t space-y-1 text-right">
-                <p>Subtotal: ${receipt.subtotal.toFixed(2)}</p>
-                <p>Tax: ${receipt.tax.toFixed(2)}</p>
-                <p className="text-lg font-bold">
-                  Total: ${receipt.total.toFixed(2)}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+      {/* Features */}
+      <div className="container mx-auto px-4 py-16">
+        <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+          <div className="text-center p-6">
+            <TrendingUp className="h-10 w-10 mx-auto mb-4 text-primary" />
+            <h3 className="font-semibold text-lg mb-2">See Your Spending</h3>
+            <p className="text-muted-foreground">
+              Automatic categorization shows exactly where your money goes.
+            </p>
+          </div>
+          <div className="text-center p-6">
+            <Search className="h-10 w-10 mx-auto mb-4 text-primary" />
+            <h3 className="font-semibold text-lg mb-2">Search Everything</h3>
+            <p className="text-muted-foreground">
+              Find any item across all your receipts instantly.
+            </p>
+          </div>
+          <div className="text-center p-6">
+            <Clock className="h-10 w-10 mx-auto mb-4 text-primary" />
+            <h3 className="font-semibold text-lg mb-2">Track Over Time</h3>
+            <p className="text-muted-foreground">
+              See price changes and buying patterns month to month.
+            </p>
+          </div>
+        </div>
       </div>
     </main>
   );

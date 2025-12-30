@@ -17,6 +17,44 @@ export async function getReceipts() {
   return data;
 }
 
+export async function getReceiptById(id: string) {
+  const supabase = createClient();
+  
+  const { data, error } = await supabase
+    .from("receipts")
+    .select(
+      `
+      *,
+      line_items (*)
+    `
+    )
+    .eq("id", id)
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteReceipt(id: string) {
+  const supabase = createClient();
+  
+  // Delete line items first (foreign key constraint)
+  const { error: lineItemsError } = await supabase
+    .from("line_items")
+    .delete()
+    .eq("receipt_id", id);
+
+  if (lineItemsError) throw lineItemsError;
+
+  // Then delete the receipt
+  const { error: receiptError } = await supabase
+    .from("receipts")
+    .delete()
+    .eq("id", id);
+
+  if (receiptError) throw receiptError;
+}
+
 export async function getSpendingByCategory() {
   const supabase = createClient();
   
@@ -26,7 +64,6 @@ export async function getSpendingByCategory() {
 
   if (error) throw error;
 
-  // Aggregate by category
   const byCategory = data.reduce((acc, item) => {
     const cat = item.category || "Uncategorized";
     acc[cat] = (acc[cat] || 0) + Number(item.total_price);
@@ -47,7 +84,6 @@ export async function getTopItems(limit = 10) {
 
   if (error) throw error;
 
-  // Aggregate by item name
   const byItem = data.reduce((acc, item) => {
     const name = item.normalized_name || item.raw_description;
     if (!acc[name]) {
