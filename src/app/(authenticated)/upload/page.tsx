@@ -4,11 +4,13 @@ import { useState } from "react";
 import { ReceiptUpload } from "@/components/receipt-upload";
 import { ParsedReceipt } from "@/lib/actions/parse-receipt";
 import { saveReceipt } from "@/lib/actions/save-receipt";
+import { uploadReceiptFile } from "@/lib/queries/receipts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 export default function UploadPage() {
   const [receipt, setReceipt] = useState<ParsedReceipt | null>(null);
+  const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -17,7 +19,14 @@ export default function UploadPage() {
 
     setSaving(true);
     try {
-      await saveReceipt(receipt);
+      let filePath: string | undefined;
+      
+      // Upload file to storage if we have one
+      if (file) {
+        filePath = await uploadReceiptFile(file);
+      }
+      
+      await saveReceipt(receipt, filePath);
       setSaved(true);
     } catch (err) {
       console.error(err);
@@ -27,8 +36,9 @@ export default function UploadPage() {
     }
   };
 
-  const handleNewReceipt = (parsed: ParsedReceipt) => {
+  const handleNewReceipt = (parsed: ParsedReceipt, uploadedFile: File) => {
     setReceipt(parsed);
+    setFile(uploadedFile);
     setSaved(false);
   };
 

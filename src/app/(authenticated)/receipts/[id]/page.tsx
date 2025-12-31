@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/dialog";
 import { ArrowLeft, Trash2, Pencil } from "lucide-react";
 import Link from "next/link";
+import { getReceiptFileUrl } from "@/lib/queries/receipts";
+import { FileText } from "lucide-react";
 
 interface LineItem {
   id: string;
@@ -38,6 +40,12 @@ export default function ReceiptDetailPage() {
     category: "",
     subcategory: "",
   });
+
+  async function handleViewOriginal() {
+  if (!receipt?.file_path) return;
+  const url = await getReceiptFileUrl(receipt.file_path);
+  window.open(url, "_blank");
+}
 
   const { data: receipt, isLoading } = useQuery({
     queryKey: ["receipt", id],
@@ -112,6 +120,12 @@ export default function ReceiptDetailPage() {
             Back
           </Link>
         </Button>
+                {receipt.file_path && (
+  <Button variant="outline" size="sm" onClick={handleViewOriginal}>
+    <FileText className="h-4 w-4 mr-2" />
+    View Original
+  </Button>
+)}
         <Button
           variant="destructive"
           size="sm"
@@ -121,6 +135,7 @@ export default function ReceiptDetailPage() {
           <Trash2 className="h-4 w-4 mr-2" />
           {deleteMutation.isPending ? "Deleting..." : "Delete"}
         </Button>
+
       </div>
 
       <Card>

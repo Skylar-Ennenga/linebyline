@@ -8,7 +8,7 @@ import { parseReceipt, ParsedReceipt } from "@/lib/actions/parse-receipt";
 type UploadState = "idle" | "uploading" | "success" | "error";
 
 interface ReceiptUploadProps {
-  onParsed: (receipt: ParsedReceipt) => void;
+  onParsed: (receipt: ParsedReceipt, file: File) => void;
 }
 
 export function ReceiptUpload({ onParsed }: ReceiptUploadProps) {
@@ -32,7 +32,7 @@ export function ReceiptUpload({ onParsed }: ReceiptUploadProps) {
 
         const result = await parseReceipt(formData);
         setState("success");
-        onParsed(result);
+        onParsed(result, file);
       } catch (err) {
         setState("error");
         setError(

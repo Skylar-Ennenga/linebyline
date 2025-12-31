@@ -3,10 +3,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { ParsedReceipt } from "./parse-receipt";
 
-export async function saveReceipt(receipt: ParsedReceipt) {
+export async function saveReceipt(receipt: ParsedReceipt, filePath?: string) {
   const supabase = await createClient();
   
-  // Get the current user
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   
   if (userError || !user) {
@@ -25,6 +24,7 @@ export async function saveReceipt(receipt: ParsedReceipt) {
       total: receipt.total,
       item_count: receipt.item_count,
       raw_text: JSON.stringify(receipt),
+      file_path: filePath,
     })
     .select()
     .single();

@@ -148,3 +148,32 @@ export async function updateLineItem(
 
   if (updateError) throw updateError;
 }
+
+export async function uploadReceiptFile(file: File): Promise<string> {
+  const supabase = createClient();
+  
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+  const { error } = await supabase.storage
+    .from("receipts")
+    .upload(fileName, file);
+
+  if (error) throw error;
+
+  return fileName;
+}
+
+export async function getReceiptFileUrl(filePath: string): Promise<string> {
+  const supabase = createClient();
+  
+  const { data, error } = await supabase.storage
+    .from("receipts")
+    .createSignedUrl(filePath, 60 * 60); 
+
+  if (error) throw error;
+  return data.signedUrl;
+}
