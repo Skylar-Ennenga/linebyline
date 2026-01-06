@@ -37,7 +37,16 @@ export async function getReceiptById(id: string) {
 
 export async function deleteReceipt(id: string) {
   const supabase = createClient();
-  
+
+  // First get the receipt to find the file path
+  const { data: receipt, error: fetchError } = await supabase
+    .from("receipts")
+    .select("file_path")
+    .eq("id", id)
+    .single();
+
+  if (fetchError) throw fetchError;
+
   // Delete line items first (foreign key constraint)
   const { error: lineItemsError } = await supabase
     .from("line_items")
@@ -46,13 +55,25 @@ export async function deleteReceipt(id: string) {
 
   if (lineItemsError) throw lineItemsError;
 
-  // Then delete the receipt
+  // Delete the receipt record
   const { error: receiptError } = await supabase
     .from("receipts")
     .delete()
     .eq("id", id);
 
   if (receiptError) throw receiptError;
+
+  // Delete the file from storage if it exists
+  if (receipt?.file_path) {
+    const { error: storageError } = await supabase.storage
+      .from("receipts")
+      .remove([receipt.file_path]);
+
+    if (storageError) {
+      console.error("Failed to delete file from storage:", storageError);
+      // Don't throw — receipt is already deleted, just log the error
+    }
+  }
 }
 
 export async function getSpendingByCategory() {
@@ -176,4 +197,30 @@ export async function getReceiptFileUrl(filePath: string): Promise<string> {
 
   if (error) throw error;
   return data.signedUrl;
+}
+
+export async function checkForDuplicate(
+  storeName: string,
+  purchaseDate: string,
+  total: number,
+  itemCount: number
+): Promise<{ isDuplicate: boolean; existingId?: string }> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("receipts")
+    .select("id")
+    .eq("store_name", storeName)
+    .eq("purchase_date", purchaseDate)
+    .eq("total", total)
+    .eq("item_count", itemCount)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return {
+    isDuplicate: !!data,
+    existingId: data?.id,
+  };
 }
