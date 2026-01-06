@@ -12,6 +12,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { logout } from "@/lib/actions/auth";
+import { ThemeToggle } from "./theme-toggle";
 
 const navLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -50,6 +51,7 @@ export function Navbar() {
               <Icon className="h-4 w-4" />
               {link.label}
             </Link>
+            
           );
         })}
       </>
@@ -66,6 +68,7 @@ export function Navbar() {
 
         <nav className="hidden md:flex items-center gap-1">
           <NavLinks />
+          <ThemeToggle/>
           <Button 
             variant="ghost" 
             size="sm" 

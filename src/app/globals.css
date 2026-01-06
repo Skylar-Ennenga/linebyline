@@ -41,6 +41,21 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  
+  /* Category colors for spending breakdown */
+  --color-category-1: var(--category-1);
+  --color-category-2: var(--category-2);
+  --color-category-3: var(--category-3);
+  --color-category-4: var(--category-4);
+  --color-category-5: var(--category-5);
+  --color-category-6: var(--category-6);
+  --color-category-7: var(--category-7);
+  --color-category-8: var(--category-8);
+  
+  /* Status colors */
+  --color-status-up: var(--status-up);
+  --color-status-down: var(--status-down);
+  --color-status-neutral: var(--status-neutral);
 }
 
 :root {
@@ -76,6 +91,21 @@
   --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
   --sidebar-border: oklch(0.929 0.013 255.508);
   --sidebar-ring: oklch(0.704 0.04 256.788);
+  
+  /* Category colors - distinct but harmonious */
+  --category-1: oklch(0.65 0.15 175);   /* Teal */
+  --category-2: oklch(0.60 0.15 250);   /* Blue */
+  --category-3: oklch(0.60 0.15 300);   /* Purple */
+  --category-4: oklch(0.65 0.15 350);   /* Pink */
+  --category-5: oklch(0.70 0.15 60);    /* Orange */
+  --category-6: oklch(0.65 0.15 145);   /* Green */
+  --category-7: oklch(0.55 0.12 230);   /* Indigo */
+  --category-8: oklch(0.65 0.12 30);    /* Coral */
+  
+  /* Status colors - informational, not judgmental */
+  --status-up: oklch(0.65 0.15 175);    /* Teal - matches primary */
+  --status-down: oklch(0.60 0.15 300);  /* Purple - noticeable but not alarming */
+  --status-neutral: oklch(0.55 0.03 260); /* Gray */
 }
 
 .dark {
@@ -110,6 +140,21 @@
   --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.551 0.027 264.364);
+  
+  /* Category colors - slightly brighter for dark mode */
+  --category-1: oklch(0.70 0.15 175);
+  --category-2: oklch(0.65 0.15 250);
+  --category-3: oklch(0.65 0.15 300);
+  --category-4: oklch(0.70 0.15 350);
+  --category-5: oklch(0.75 0.15 60);
+  --category-6: oklch(0.70 0.15 145);
+  --category-7: oklch(0.60 0.12 230);
+  --category-8: oklch(0.70 0.12 30);
+  
+  /* Status colors for dark mode */
+  --status-up: oklch(0.70 0.15 175);
+  --status-down: oklch(0.65 0.15 300);
+  --status-neutral: oklch(0.60 0.03 260);
 }
 
 @layer base {
@@ -118,5 +163,35 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  
+  /* Tabular figures for money - critical for alignment */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  /* Money display styles */
+  .money-hero {
+    @apply text-5xl md:text-6xl font-bold tracking-tight tabular-nums;
+  }
+  
+  .money-large {
+    @apply text-2xl md:text-3xl font-semibold tracking-tight tabular-nums;
+  }
+  
+  .money-inline {
+    @apply font-semibold tabular-nums;
+  }
+  
+  /* Spending bar */
+  .spending-bar {
+    @apply h-3 rounded-full transition-all duration-500 ease-out;
+  }
+  
+  /* Card hover state */
+  .card-interactive {
+    @apply transition-all duration-200 hover:shadow-md hover:border-primary/20 cursor-pointer;
   }
 }
