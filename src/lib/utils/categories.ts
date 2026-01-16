@@ -77,3 +77,41 @@ export function formatRelativeTime(days: number): string {
     return `Every ${months} month${months > 1 ? 's' : ''}`;
   }
 }
+
+// Get frequency type based on average days between purchases
+export function getFrequencyType(avgDaysBetween: number): 'high' | 'medium' | 'low' {
+  if (avgDaysBetween <= 30) {
+    return 'high';
+  } else if (avgDaysBetween <= 90) {
+    return 'medium';
+  } else {
+    return 'low';
+  }
+}
+
+// Format subscription frequency in a subscription-focused way
+export function formatSubscriptionFrequency(days: number): string {
+  if (days < 1) {
+    return 'Daily';
+  } else if (days < 2) {
+    return 'Daily';
+  } else if (days < 7) {
+    return `Every ${Math.round(days)} days`;
+  } else if (days < 14) {
+    return 'Weekly';
+  } else if (days < 21) {
+    return 'Every 2 weeks';
+  } else if (days < 35) {
+    return 'Monthly';
+  } else if (days < 65) {
+    const months = Math.round(days / 30);
+    return `Every ${months} ${months === 1 ? 'month' : 'months'}`;
+  } else if (days < 95) {
+    return 'Quarterly';
+  } else if (days < 180) {
+    return 'Every 4-6 months';
+  } else {
+    const months = Math.round(days / 30);
+    return `Every ${months} months`;
+  }
+}

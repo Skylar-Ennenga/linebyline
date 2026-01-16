@@ -5,10 +5,12 @@ import { useQuery } from "@tanstack/react-query";
 import {
   getMonthlySpending,
   getCategoryBreakdown,
-  getRecurringItems,
+  getSubscriptionItems,
+  getMonthlySubscriptionTotal,
+  getOneOffPurchases,
   TimeRange,
 } from "@/lib/queries/dashboard";
-import { formatMoney } from "@/lib/utils/categories";
+import { formatMoney, formatSubscriptionFrequency } from "@/lib/utils/categories";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -53,12 +55,22 @@ export default function Dashboard() {
     queryFn: () => getCategoryBreakdown(timeRange),
   });
 
-  const { data: recurringItems, isLoading: recurringLoading } = useQuery({
-    queryKey: ["recurring-items", timeRange],
-    queryFn: () => getRecurringItems(timeRange),
+  const { data: subscriptionItems, isLoading: subscriptionLoading } = useQuery({
+    queryKey: ["subscription-items", timeRange],
+    queryFn: () => getSubscriptionItems(timeRange),
   });
 
-  const isLoading = monthlyLoading || categoriesLoading || recurringLoading;
+  const { data: subscriptionTotal, isLoading: subscriptionTotalLoading } = useQuery({
+    queryKey: ["subscription-total", timeRange],
+    queryFn: () => getMonthlySubscriptionTotal(timeRange),
+  });
+
+  const { data: oneOffPurchases, isLoading: oneOffLoading } = useQuery({
+    queryKey: ["one-off-purchases", timeRange],
+    queryFn: () => getOneOffPurchases(timeRange),
+  });
+
+  const isLoading = monthlyLoading || categoriesLoading || subscriptionLoading || subscriptionTotalLoading || oneOffLoading;
 
   if (isLoading) {
     return (
@@ -74,8 +86,12 @@ export default function Dashboard() {
 
   const hasData = monthlyData && monthlyData.receiptCount > 0;
   const topCategories = categories?.slice(0, 5) || [];
-  const topRecurring = recurringItems?.slice(0, 4) || [];
-  const totalRecurringMonthly = topRecurring.reduce((sum, item) => sum + item.monthlyEstimate, 0);
+  const topSubscriptions = subscriptionItems?.slice(0, 8) || [];
+  const highFreqSubscriptions = topSubscriptions.filter(item => item.frequencyType === 'high');
+  const mediumFreqSubscriptions = topSubscriptions.filter(item => item.frequencyType === 'medium');
+  const lowFreqSubscriptions = topSubscriptions.filter(item => item.frequencyType === 'low');
+  const recentOneOffs = oneOffPurchases?.slice(0, 6) || [];
+  const totalOneOffs = oneOffPurchases?.reduce((sum, item) => sum + item.amount, 0) || 0;
 
   return (
     <main className="p-6 max-w-7xl mx-auto space-y-6">
@@ -159,22 +175,187 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            {/* Recurring Estimate */}
+            {/* Monthly Subscriptions */}
             <Card>
               <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground">Recurring Items</p>
+                <p className="text-sm text-muted-foreground">Monthly Subscriptions</p>
                 <p className="text-2xl font-bold tabular-nums mt-1">
-                  {formatMoney(totalRecurringMonthly)}
+                  {formatMoney(subscriptionTotal || 0)}
                   <span className="text-sm font-normal text-muted-foreground">/mo</span>
                 </p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Main Content - 2 columns */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Categories */}
+          {/* Main Content - 3 columns */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Your Subscriptions */}
+            <Card className="lg:col-span-2">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base font-medium">Your Subscriptions</CardTitle>
+                  <Repeat className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Total: {formatMoney(subscriptionTotal || 0)}/mo
+                </p>
+              </CardHeader>
+              <CardContent>
+                {topSubscriptions.length > 0 ? (
+                  <div className="space-y-4">
+                    {/* High Frequency */}
+                    {highFreqSubscriptions.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
+                          Daily/Weekly
+                        </p>
+                        <div className="space-y-2">
+                          {highFreqSubscriptions.map((item) => (
+                            <div key={item.name} className="flex justify-between items-center">
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium text-sm truncate">{item.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {formatSubscriptionFrequency(item.avgDaysBetween)} • {item.purchaseCount}x purchased
+                                </p>
+                              </div>
+                              <div className="text-right ml-4">
+                                <p className="font-semibold tabular-nums text-sm">
+                                  {formatMoney(item.monthlyEstimate)}
+                                </p>
+                                <p className="text-xs text-muted-foreground">/mo</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Medium Frequency */}
+                    {mediumFreqSubscriptions.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
+                          Monthly
+                        </p>
+                        <div className="space-y-2">
+                          {mediumFreqSubscriptions.map((item) => (
+                            <div key={item.name} className="flex justify-between items-center">
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium text-sm truncate">{item.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {formatSubscriptionFrequency(item.avgDaysBetween)} • {item.purchaseCount}x purchased
+                                </p>
+                              </div>
+                              <div className="text-right ml-4">
+                                <p className="font-semibold tabular-nums text-sm">
+                                  {formatMoney(item.monthlyEstimate)}
+                                </p>
+                                <p className="text-xs text-muted-foreground">/mo</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Low Frequency */}
+                    {lowFreqSubscriptions.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
+                          Quarterly & Beyond
+                        </p>
+                        <div className="space-y-2">
+                          {lowFreqSubscriptions.map((item) => (
+                            <div key={item.name} className="flex justify-between items-center">
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium text-sm truncate">{item.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {formatSubscriptionFrequency(item.avgDaysBetween)} • {item.purchaseCount}x purchased
+                                </p>
+                              </div>
+                              <div className="text-right ml-4">
+                                <p className="font-semibold tabular-nums text-sm">
+                                  {formatMoney(item.monthlyEstimate)}
+                                </p>
+                                <p className="text-xs text-muted-foreground">/mo</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {subscriptionItems && subscriptionItems.length > 8 && (
+                      <Button variant="ghost" size="sm" className="w-full mt-2" asChild>
+                        <Link href="/insights">
+                          View all {subscriptionItems.length} subscriptions
+                          <ArrowRight className="h-4 w-4 ml-2" />
+                        </Link>
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground py-4 text-center">
+                    Upload more receipts to see subscription patterns
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* One-Off Purchases */}
             <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base font-medium">One-Off Purchases</CardTitle>
+                  <Receipt className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Total: {formatMoney(totalOneOffs)}
+                </p>
+              </CardHeader>
+              <CardContent>
+                {recentOneOffs.length > 0 ? (
+                  <div className="space-y-2">
+                    {recentOneOffs.map((item, index) => (
+                      <div key={`${item.receiptId}-${item.itemName}-${index}`} className="pb-2 border-b last:border-0 last:pb-0">
+                        <div className="flex justify-between items-start">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-sm truncate">
+                              {item.itemName || item.storeName || "Purchase"}
+                            </p>
+                            {item.storeName && item.itemName && (
+                              <p className="text-xs text-muted-foreground truncate">{item.storeName}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {new Date(item.date).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div className="text-right ml-3">
+                            <p className="font-semibold tabular-nums text-sm">
+                              {formatMoney(item.amount)}
+                            </p>
+                            <p className="text-xs text-muted-foreground capitalize">
+                              {item.reason.replace('-', ' ')}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {oneOffPurchases && oneOffPurchases.length > 6 && (
+                      <p className="text-xs text-muted-foreground pt-2 text-center">
+                        +{oneOffPurchases.length - 6} more one-off purchases
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground py-4 text-center">
+                    No one-off purchases detected
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Spending by Category */}
+            <Card className="lg:col-span-3">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base font-medium">Spending by Category</CardTitle>
@@ -204,50 +385,6 @@ export default function Dashboard() {
                 {categories && categories.length > 5 && (
                   <p className="text-xs text-muted-foreground pt-2">
                     +{categories.length - 5} more categories
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Recurring Items */}
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base font-medium">Regular Purchases</CardTitle>
-                  <Repeat className="h-4 w-4 text-muted-foreground" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                {topRecurring.length > 0 ? (
-                  <div className="space-y-3">
-                    {topRecurring.map((item) => (
-                      <div key={item.name} className="flex justify-between items-center">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium text-sm truncate">{item.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.purchaseCount}x purchased
-                          </p>
-                        </div>
-                        <div className="text-right ml-4">
-                          <p className="font-semibold tabular-nums text-sm">
-                            {formatMoney(item.monthlyEstimate)}
-                          </p>
-                          <p className="text-xs text-muted-foreground">/month</p>
-                        </div>
-                      </div>
-                    ))}
-                    {recurringItems && recurringItems.length > 4 && (
-                      <Button variant="ghost" size="sm" className="w-full mt-2" asChild>
-                        <Link href="/insights">
-                          View all {recurringItems.length} items
-                          <ArrowRight className="h-4 w-4 ml-2" />
-                        </Link>
-                      </Button>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground py-4 text-center">
-                    Upload more receipts to see patterns
                   </p>
                 )}
               </CardContent>

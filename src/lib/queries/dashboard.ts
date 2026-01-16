@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
+import { getFrequencyType } from "@/lib/utils/categories";
 
 export type TimeRange = "this-month" | "last-month" | "last-3-months" | "all-time";
 
@@ -29,6 +30,22 @@ export interface RecurringItem {
   avgDaysBetween: number;
   monthlyEstimate: number;
   lastPurchased: string;
+}
+
+export interface SubscriptionItem extends RecurringItem {
+  frequencyType: 'high' | 'medium' | 'low';
+  subscriptionType: 'subscription'; // for type discrimination
+}
+
+export interface OneOffPurchase {
+  type: 'one-off';
+  receiptId?: string;
+  itemName?: string;
+  amount: number;
+  date: string;
+  category: string;
+  storeName?: string;
+  reason: 'single-purchase' | 'unusual-amount' | 'isolated-receipt';
 }
 
 export interface PriceChange {
@@ -266,7 +283,192 @@ export async function getRecurringItems(timeRange: TimeRange = "all-time"): Prom
   return recurringItems.sort((a, b) => b.monthlyEstimate - a.monthlyEstimate);
 }
 
+export async function getSubscriptionItems(timeRange: TimeRange = "all-time"): Promise<SubscriptionItem[]> {
+  const recurringItems = await getRecurringItems(timeRange);
+  
+  return recurringItems.map(item => ({
+    ...item,
+    frequencyType: getFrequencyType(item.avgDaysBetween),
+    subscriptionType: 'subscription' as const,
+  }));
+}
 
+export async function getMonthlySubscriptionTotal(timeRange: TimeRange = "all-time"): Promise<number> {
+  const subscriptionItems = await getSubscriptionItems(timeRange);
+  return subscriptionItems.reduce((sum, item) => sum + item.monthlyEstimate, 0);
+}
+
+export async function getOneOffPurchases(timeRange: TimeRange = "all-time"): Promise<OneOffPurchase[]> {
+  const supabase = createClient();
+  const { start, end } = getDateRange(timeRange);
+  const oneOffs: OneOffPurchase[] = [];
+
+  // Get all line items for the period
+  const { data: lineItems, error: itemsError } = await supabase
+    .from("line_items")
+    .select(`
+      id,
+      normalized_name,
+      category,
+      total_price,
+      receipt_id,
+      receipts!inner(id, store_name, purchase_date, total)
+    `)
+    .gte("total_price", 5); // Minimum threshold of $5
+
+  if (itemsError) throw itemsError;
+  if (!lineItems || lineItems.length === 0) return [];
+
+  // Filter to selected period
+  const periodItems = lineItems.filter(item => {
+    const receipt = item.receipts as any;
+    const date = new Date(receipt.purchase_date);
+    return date >= start && date <= end;
+  });
+
+  // Get all item names and their purchase counts
+  const itemNameCounts = new Map<string, number>();
+  const itemToReceipts = new Map<string, Set<string>>(); // item name -> receipt IDs
+
+  periodItems.forEach(item => {
+    const name = item.normalized_name || "Unknown";
+    const receiptId = item.receipt_id;
+    const count = itemNameCounts.get(name) || 0;
+    itemNameCounts.set(name, count + 1);
+
+    if (!itemToReceipts.has(name)) {
+      itemToReceipts.set(name, new Set());
+    }
+    itemToReceipts.get(name)!.add(receiptId);
+  });
+
+  // 1. Single-purchase items (appear only once, above threshold)
+  periodItems.forEach(item => {
+    const name = item.normalized_name || "Unknown";
+    const receipt = item.receipts as any;
+    const price = Number(item.total_price) || 0;
+    
+    if (price > 0 && itemNameCounts.get(name) === 1) {
+      oneOffs.push({
+        type: 'one-off',
+        receiptId: receipt.id,
+        itemName: name,
+        amount: price,
+        date: receipt.purchase_date,
+        category: item.category || "Other",
+        storeName: receipt.store_name,
+        reason: 'single-purchase',
+      });
+    }
+  });
+
+  // 2. Isolated receipts (receipts where none of the items appear in other receipts)
+  const { data: receipts, error: receiptsError } = await supabase
+    .from("receipts")
+    .select("id, store_name, purchase_date, total")
+    .order("purchase_date", { ascending: false });
+
+  if (receiptsError) throw receiptsError;
+
+  const periodReceipts = receipts?.filter(r => {
+    const date = new Date(r.purchase_date);
+    return date >= start && date <= end;
+  }) || [];
+
+  periodReceipts.forEach(receipt => {
+    const receiptItems = periodItems.filter(item => {
+      const r = item.receipts as any;
+      return r.id === receipt.id;
+    });
+
+    // Check if any item from this receipt appears in other receipts
+    const hasRecurringItem = receiptItems.some(item => {
+      const name = item.normalized_name || "Unknown";
+      const receiptIds = itemToReceipts.get(name);
+      return receiptIds && receiptIds.size > 1;
+    });
+
+    // If no recurring items, this is an isolated receipt
+    if (!hasRecurringItem && receiptItems.length > 0) {
+      const receiptTotal = Number(receipt.total) || 0;
+      if (receiptTotal > 0) {
+        oneOffs.push({
+          type: 'one-off',
+          receiptId: receipt.id,
+          amount: receiptTotal,
+          date: receipt.purchase_date,
+          category: receiptItems[0]?.category || "Other",
+          storeName: receipt.store_name,
+          reason: 'isolated-receipt',
+        });
+      }
+    }
+  });
+
+  // 3. Unusual amounts (items/receipts >2 standard deviations above average)
+  // Calculate category averages
+  const categoryTotals = new Map<string, number[]>();
+  periodItems.forEach(item => {
+    const category = item.category || "Other";
+    const price = Number(item.total_price) || 0;
+    if (price > 0) {
+      const totals = categoryTotals.get(category) || [];
+      totals.push(price);
+      categoryTotals.set(category, totals);
+    }
+  });
+
+  const categoryStats = new Map<string, { mean: number; stdDev: number }>();
+  categoryTotals.forEach((totals, category) => {
+    const mean = totals.reduce((sum, val) => sum + val, 0) / totals.length;
+    const variance = totals.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / totals.length;
+    const stdDev = Math.sqrt(variance);
+    categoryStats.set(category, { mean, stdDev });
+  });
+
+  // Find unusual items
+  periodItems.forEach(item => {
+    const category = item.category || "Other";
+    const price = Number(item.total_price) || 0;
+    const stats = categoryStats.get(category);
+    
+    if (stats && price > stats.mean + (2 * stats.stdDev) && price > 10) {
+      const receipt = item.receipts as any;
+      // Only add if not already added as single-purchase
+      const alreadyAdded = oneOffs.some(
+        o => o.itemName === item.normalized_name && o.date === receipt.purchase_date
+      );
+      
+      if (!alreadyAdded) {
+        oneOffs.push({
+          type: 'one-off',
+          receiptId: receipt.id,
+          itemName: item.normalized_name || "Unknown",
+          amount: price,
+          date: receipt.purchase_date,
+          category,
+          storeName: receipt.store_name,
+          reason: 'unusual-amount',
+        });
+      }
+    }
+  });
+
+  // Remove duplicates (same receipt/item/date combination)
+  const uniqueOneOffs = Array.from(
+    new Map(
+      oneOffs.map(item => [`${item.receiptId}-${item.itemName}-${item.date}`, item])
+    ).values()
+  );
+
+  // Sort by amount (descending) and date (descending)
+  return uniqueOneOffs.sort((a, b) => {
+    if (Math.abs(a.amount - b.amount) > 0.01) {
+      return b.amount - a.amount;
+    }
+    return new Date(b.date).getTime() - new Date(a.date).getTime();
+  });
+}
 
 export async function getPriceChanges(): Promise<PriceChange[]> {
   const supabase = createClient();
